@@ -11,9 +11,53 @@ import (
 	"os/signal"
 	"syscall"
 	"sync"
+	"github.com/staugust/esoperator/pkg/k8sutil"
+	"github.com/staugust/esoperator/pkg/controller"
+	"flag"
+	"fmt"
+	"k8s.io/client-go/kubernetes"
+)
+var (
+	appVersion = "0.1.0"
+	
+	printVersion bool
+	baseImage    string
+	kubeCfgFile  string
+	masterHost   string
 )
 
+func init() {
+	flag.BoolVar(&printVersion, "version", false, "Show version and quit")
+	flag.StringVar(&baseImage, "baseImage", "skydiscovery/elasticsearch:6.2.4", "Base image to use when spinning up the elasticsearch components.")
+	flag.StringVar(&kubeCfgFile, "kubecfg-file", "", "Location of kubecfg file for access to kubernetes master service; --kube_master_url overrides the URL part of this; if neither this nor --kube_master_url are provided, defaults to service account tokens")
+	flag.StringVar(&masterHost, "masterhost", "http://127.0.0.1:6443", "Full url to k8s api server")
+	flag.Parse()
+}
+
 func main(){
+	if printVersion {
+		fmt.Println("elasticsearch-operator", appVersion)
+		os.Exit(0)
+	}
+	logrus.Info("elasticsearch operator starting up!")
+	
+	// Print params configured
+	logrus.Info("Using Variables:")
+	logrus.Infof("   baseImage: %s", baseImage)
+	
+	k8sclient, err := k8sutil.New(kubeCfgFile, masterHost)
+	if err != nil {
+		logrus.Error("Could not init k8sclient! ", err)
+		return 1
+	}
+	
+	controller, err := controller.NewESController(&(k8sclient.Kclient.(kubernetes.Clientset)))
+	if err != nil {
+		logrus.Error("Could not init Controller! ", err)
+		return 1
+	}
+	
+	
 	doneChan := make(chan struct{})
 	var wg sync.WaitGroup
 	
