@@ -59,8 +59,8 @@ func NewESController(kclient *kubernetes.Clientset) *ESController {
 	namespaceInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: showInfo("ADD"),
 		UpdateFunc: func(oldObj, newObj interface{}) {
-			fmt.Printf("OLDOBJ --> %v", oldObj)
-			fmt.Printf("NEWOBJ --> %v", newObj)
+			fmt.Printf("OLDOBJ --> %v\n", oldObj)
+			fmt.Printf("NEWOBJ --> %v\n", newObj)
 		},
 		DeleteFunc: showInfo("DELETE"),
 	})
