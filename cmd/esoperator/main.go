@@ -11,12 +11,12 @@ import (
 	"os/signal"
 	"syscall"
 	"sync"
-	"github.com/staugust/esoperator/pkg/k8sutil"
 	"github.com/staugust/esoperator/pkg/controller"
 	"flag"
 	"fmt"
 	"k8s.io/client-go/kubernetes"
-
+	
+	"k8s.io/client-go/rest"
 )
 var (
 	appVersion = "0.1.0"
@@ -46,13 +46,20 @@ func main(){
 	logrus.Info("Using Variables:")
 	logrus.Infof("   baseImage: %s", baseImage)
 	
-	k8sclient, err := k8sutil.New(kubeCfgFile, masterHost)
+	k8sconfig, err := rest.InClusterConfig()
+	if err != nil {
+		logrus.Error("Could not find k8s config")
+		logrus.Error(err)
+		os.Exit(1)
+	}
+	
+	k8sclient, err := kubernetes.NewForConfig(k8sconfig)
 	if err != nil {
 		logrus.Error("Could not init k8sclient! ", err)
 		os.Exit(1)
 	}
 	
-	controller := controller.NewESController(&(k8sclient.Kclient.(kubernetes.Clientset)))
+	controller := controller.NewESController(k8sclient)
 
 	
 	doneChan := make(chan struct{})
