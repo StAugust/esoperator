@@ -41,6 +41,7 @@ func (c *ESController) Run(stopCh <-chan struct{}, wg *sync.WaitGroup) {
 func NewESController(kclient *kubernetes.Clientset) *ESController {
 	namespaceWatcher := &ESController{}
 	
+		
 	// Create informer for watching Namespaces
 	namespaceInformer := cache.NewSharedIndexInformer(
 		&cache.ListWatch{

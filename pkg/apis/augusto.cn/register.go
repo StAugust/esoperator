@@ -1,7 +1,7 @@
 package esoperator
+
 import (
 	"fmt"
-	
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
@@ -17,4 +17,3 @@ var (
 	Name               = fmt.Sprintf("%s.%s", ResourcePlural, GroupName)
 	SchemeGroupVersion = schema.GroupVersion{Group: GroupName, Version: Version}
 )
-

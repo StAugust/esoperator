@@ -15,9 +15,9 @@ import (
 	"flag"
 	"fmt"
 	"k8s.io/client-go/kubernetes"
-	
 	"k8s.io/client-go/rest"
 )
+
 var (
 	appVersion = "0.1.0"
 	
@@ -35,7 +35,7 @@ func init() {
 	flag.Parse()
 }
 
-func main(){
+func main() {
 	if printVersion {
 		fmt.Println("elasticsearch-operator", appVersion)
 		os.Exit(0)
@@ -60,7 +60,6 @@ func main(){
 	}
 	
 	controller := controller.NewESController(k8sclient)
-
 	
 	doneChan := make(chan struct{})
 	var wg sync.WaitGroup
@@ -74,7 +73,7 @@ func main(){
 	mux.HandleFunc("/live", health.LiveEndpoint)
 	mux.HandleFunc("/ready", health.ReadyEndpoint)
 	
-	srv := &http.Server{Handler:mux}
+	srv := &http.Server{Handler: mux}
 	
 	l, err := net.Listen("tcp", ":8000")
 	if err != nil {
