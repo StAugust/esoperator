@@ -12,7 +12,7 @@ SRC = $(shell find . -type f -name '*.go' -not -path "./vendor/*")
 all: container
 
 build:
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -a -installsuffix cgo -o _output/bin/elasticsearch-operator --ldflags '-w' ./esoperator/main.go
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -a -installsuffix cgo -o _output/bin/elasticsearch-operator --ldflags '-w' ./cmd/esoperator/main.go
 
 container: build
 	docker build -t $(PREFIX)/elasticsearch-operator:$(TAG) .
