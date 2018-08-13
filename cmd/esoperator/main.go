@@ -16,6 +16,7 @@ import (
 	"flag"
 	"fmt"
 	"k8s.io/client-go/kubernetes"
+
 )
 var (
 	appVersion = "0.1.0"
@@ -48,15 +49,11 @@ func main(){
 	k8sclient, err := k8sutil.New(kubeCfgFile, masterHost)
 	if err != nil {
 		logrus.Error("Could not init k8sclient! ", err)
-		return 1
+		os.Exit(1)
 	}
 	
-	controller, err := controller.NewESController(&(k8sclient.Kclient.(kubernetes.Clientset)))
-	if err != nil {
-		logrus.Error("Could not init Controller! ", err)
-		return 1
-	}
-	
+	controller := controller.NewESController(&(k8sclient.Kclient.(kubernetes.Clientset)))
+
 	
 	doneChan := make(chan struct{})
 	var wg sync.WaitGroup
