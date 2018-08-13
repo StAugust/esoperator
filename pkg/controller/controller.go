@@ -62,7 +62,7 @@ func NewESController(kclient *kubernetes.Clientset) *ESController {
 			fmt.Printf("OLDOBJ --> %v", oldObj)
 			fmt.Printf("NEWOBJ --> %v", newObj)
 		},
-		DeleteFunc:showInfo("DELETE"),
+		DeleteFunc: showInfo("DELETE"),
 	})
 	namespaceWatcher.kclient = kclient
 	namespaceWatcher.namespaceInformer = namespaceInformer
@@ -70,12 +70,11 @@ func NewESController(kclient *kubernetes.Clientset) *ESController {
 	return namespaceWatcher
 }
 
-func showInfo(prefix string)  func(obj interface{}) {
+func showInfo(prefix string) func(obj interface{}) {
 	return func(obj interface{}) {
 		fmt.Printf("%s --> %v\n", prefix, obj)
 	}
 }
-
 
 func (c *ESController) createRoleBinding(obj interface{}) {
 	namespaceObj := obj.(*v1.Namespace)
@@ -103,7 +102,7 @@ func (c *ESController) createRoleBinding(obj interface{}) {
 		},
 	}
 	
-	_, err := c.kclient.Rbac().RoleBindings(namespaceName).Create(roleBinding)
+	_, err := c.kclient.RbacV1beta1().RoleBindings(namespaceName).Create(roleBinding)
 	
 	if err != nil {
 		log.Println(fmt.Sprintf("Failed to create Role Binding: %s", err.Error()))
