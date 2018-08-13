@@ -3,7 +3,7 @@ package main
 import (
 	"net/http"
 	"net"
-	"github.com/sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/heptiolabs/healthcheck"
 	"github.com/prometheus/client_golang/prometheus"
@@ -74,7 +74,7 @@ func main(){
 		logrus.Fatal(err)
 	}
 	go srv.Serve(l)
-	
+	go controller.Run(doneChan, &wg)
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
 	for {

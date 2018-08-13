@@ -57,14 +57,25 @@ func NewESController(kclient *kubernetes.Clientset) *ESController {
 	)
 	
 	namespaceInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: namespaceWatcher.createRoleBinding,
+		AddFunc: showInfo("ADD"),
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			fmt.Printf("OLDOBJ --> %v", oldObj)
+			fmt.Printf("NEWOBJ --> %v", newObj)
+		},
+		DeleteFunc:showInfo("DELETE"),
 	})
-	
 	namespaceWatcher.kclient = kclient
 	namespaceWatcher.namespaceInformer = namespaceInformer
 	
 	return namespaceWatcher
 }
+
+func showInfo(prefix string)  func(obj interface{}) {
+	return func(obj interface{}) {
+		fmt.Printf("%s --> %v\n", prefix, obj)
+	}
+}
+
 
 func (c *ESController) createRoleBinding(obj interface{}) {
 	namespaceObj := obj.(*v1.Namespace)
