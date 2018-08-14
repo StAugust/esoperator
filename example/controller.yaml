@@ -63,6 +63,7 @@ spec:
       labels:
         name: elasticsearch-operator
     spec:
+      nodeName: panchi-k8s-app.novalocal
       containers:
       - name: operator
         image: staugust/elasticsearch-operator:0.1.0

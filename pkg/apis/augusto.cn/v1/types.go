@@ -7,21 +7,21 @@ import (
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 
-type EsOperator struct {
+type EsCluster struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              EsOperatorSpec `json:"spce"`
+	Spec              EsClusterSpec `json:"spce"`
 }
 
-type EsOperatorSpec struct {
+type EsClusterSpec struct {
 	Message   string `json:"message"`
 	SomeValue *int32 `json:"someValue"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-type EsOperatorList struct {
+type EsClusterList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`
 
-	Items []EsOperator `json:"items"`
+	Items []EsCluster `json:"items"`
 }

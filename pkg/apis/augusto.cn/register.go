@@ -6,10 +6,10 @@ import (
 )
 
 const (
-	ResourceKind   = "ElasticsearchCluster"
-	ResourcePlural = "elasticsearchclusters"
+	ResourceKind   = "SkyESOperator"
+	ResourcePlural = "esclusters"
 	GroupName      = "augusto.cn"
-	ShortName      = "elasticsearchcluster"
+	ShortName      = "escluster"
 	Version        = "v1"
 )
 
