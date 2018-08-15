@@ -13,7 +13,7 @@ import (
 	"github.com/Sirupsen/logrus"
 	"strconv"
 	"k8s.io/client-go/tools/clientcmd"
-	"github.com/staugust/esoperator/pkg/apis/esoperator"
+	"github.com/staugust/esoperator/pkg/apis/augusto.cn"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"time"
 	"fmt"
