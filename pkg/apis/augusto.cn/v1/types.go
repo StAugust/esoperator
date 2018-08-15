@@ -7,7 +7,7 @@ import (
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// Foo is a specification for a Foo resource
+// EsCluster is a specification for a EsCluster resource
 type EsCluster struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -16,20 +16,20 @@ type EsCluster struct {
 	Status EsClusterStatus `json:"status"`
 }
 
-// FooSpec is the spec for a Foo resource
+// EsClusterSpec is the spec for a EsCluster resource
 type EsClusterSpec struct {
 	Message   string `json:"message"`
 	SomeValue *int32 `json:"someValue"`
 }
 
-// FooStatus is the status for a Foo resource
+// EsClusterStatus is the status for a EsCluster resource
 type EsClusterStatus struct {
 	State string `json:"state"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// FooList is a list of Foo resources
+// EsClusterList is a list of EsCluster resources
 type EsClusterList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`
