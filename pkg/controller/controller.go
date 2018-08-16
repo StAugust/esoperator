@@ -1,46 +1,54 @@
 package controller
 
 import (
-	"fmt"
-	"log"
-	"sync"
-	"time"
-	"k8s.io/api/core/v1"
-	"k8s.io/api/rbac/v1beta1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/client-go/kubernetes/scheme"
 	"github.com/golang/glog"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	appslisters "k8s.io/client-go/listers/apps/v1"
-	appsinformers "k8s.io/client-go/informers/apps/v1"
+	"k8s.io/apimachinery/pkg/util/runtime"
+	"fmt"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"time"
+	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/client-go/kubernetes/scheme"
+	coreinformers "k8s.io/client-go/informers/core/v1"
+	corelisters "k8s.io/client-go/listers/core/v1"
+	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	
-	
-	clientset "github.com/staugust/esoperator/pkg/client/clientset/versioned"
-	esv1 "github.com/staugust/esoperator/pkg/apis/augusto.cn/v1"
-	samplescheme "github.com/staugust/esoperator/pkg/client/clientset/versioned/scheme"
 	informers "github.com/staugust/esoperator/pkg/client/informers/externalversions/augusto.cn/v1"
 	listers "github.com/staugust/esoperator/pkg/client/listers/augusto.cn/v1"
-	
+	esscheme "github.com/staugust/esoperator/pkg/client/clientset/versioned/scheme"
+	clientset "github.com/staugust/esoperator/pkg/client/clientset/versioned"
+	esv1 "github.com/staugust/esoperator/pkg/apis/augusto.cn/v1"
+	"os"
+	"strconv"
 )
 
+const controllerAgentName = "es-controller"
+const (
+	MessageResourceExists = "Resource %q already exists and is not managed by Foo"
+	ErrResourceExists     = "ErrResourceExists"
+	MessageResourceSynced = "Foo synced successfully"
+	SuccessSynced         = "Synced"
+)
 
+var podTerminationGracePeriodSeconds = int64(30)
+var podSecurityContextPrivileged = true
 // Controller is the controller implementation for Foo resources
-type ESController struct {
+type Controller struct {
 	// kubeclientset is a standard kubernetes clientset
 	kubeclientset kubernetes.Interface
-	// esclientset is a clientset for our own API group
+	// sampleclientset is a clientset for our own API group
 	esclientset clientset.Interface
 	
-	deploymentsLister appslisters.DeploymentLister
-	deploymentsSynced cache.InformerSynced
-	esLister        listers.EsClusterLister
-	esSynced        cache.InformerSynced
+	podLister corelisters.PodLister
+	podSynced cache.InformerSynced
+	esLister  listers.EsClusterLister
+	esSynced  cache.InformerSynced
 	
 	// workqueue is a rate limited work queue. This is used to queue work to be
 	// processed instead of performing it as soon as a change happens. This
@@ -57,33 +65,33 @@ type ESController struct {
 func NewController(
 	kubeclientset kubernetes.Interface,
 	esclientset clientset.Interface,
-	deploymentInformer appsinformers.DeploymentInformer,
-	fooInformer informers.EsClusterInformer) *ESController {
+	pInformer coreinformers.PodInformer,
+	esInformer informers.EsClusterInformer) *Controller {
 	
 	// Create event broadcaster
 	// Add sample-controller types to the default Kubernetes Scheme so Events can be
 	// logged for sample-controller types.
-	utilruntime.Must(samplescheme.AddToScheme(scheme.Scheme))
+	esscheme.AddToScheme(scheme.Scheme)
 	glog.V(4).Info("Creating event broadcaster")
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(glog.Infof)
 	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: kubeclientset.CoreV1().Events("")})
 	recorder := eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: controllerAgentName})
 	
-	controller := &ESController{
-		kubeclientset:     kubeclientset,
+	controller := &Controller{
+		kubeclientset: kubeclientset,
 		esclientset:   esclientset,
-		deploymentsLister: deploymentInformer.Lister(),
-		deploymentsSynced: deploymentInformer.Informer().HasSynced,
-		foosLister:        fooInformer.Lister(),
-		foosSynced:        fooInformer.Informer().HasSynced,
-		workqueue:         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Foos"),
-		recorder:          recorder,
+		podLister:     pInformer.Lister(),
+		podSynced:     pInformer.Informer().HasSynced,
+		esLister:      esInformer.Lister(),
+		esSynced:      esInformer.Informer().HasSynced,
+		workqueue:     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "EsClusters"),
+		recorder:      recorder,
 	}
 	
 	glog.Info("Setting up event handlers")
 	// Set up an event handler for when Foo resources change
-	fooInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	esInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: controller.enqueueFoo,
 		UpdateFunc: func(old, new interface{}) {
 			controller.enqueueFoo(new)
@@ -95,11 +103,11 @@ func NewController(
 	// processing. This way, we don't need to implement custom logic for
 	// handling Deployment resources. More info on this pattern:
 	// https://github.com/kubernetes/community/blob/8cafef897a22026d42f5e5bb3f104febe7e29830/contributors/devel/controllers.md
-	deploymentInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	pInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: controller.handleObject,
 		UpdateFunc: func(old, new interface{}) {
-			newDepl := new.(*appsv1.Deployment)
-			oldDepl := old.(*appsv1.Deployment)
+			newDepl := new.(*corev1.Pod)
+			oldDepl := old.(*corev1.Pod)
 			if newDepl.ResourceVersion == oldDepl.ResourceVersion {
 				// Periodic resync will send update events for all known Deployments.
 				// Two different versions of the same Deployment will always have different RVs.
@@ -113,94 +121,337 @@ func NewController(
 	return controller
 }
 
-
-
-// Run starts the process for listening for namespace changes and acting upon those changes.
-func (c *ESController) Run(stopCh <-chan struct{}, wg *sync.WaitGroup) {
-	// When this function completes, mark the go function as done
-	defer wg.Done()
+// Run will set up the event handlers for types we are interested in, as well
+// as syncing informer caches and starting workers. It will block until stopCh
+// is closed, at which point it will shutdown the workqueue and wait for
+// workers to finish processing their current work items.
+func (c *Controller) Run(threadiness int, stopCh <-chan struct{}) error {
+	defer runtime.HandleCrash()
+	defer c.workqueue.ShutDown()
 	
-	// Increment wait group as we're about to execute a go function
-	wg.Add(1)
+	// Start the informer factories to begin populating the informer caches
+	glog.Info("Starting Foo controller")
 	
-	// Execute go function
-	go c.namespaceInformer.Run(stopCh)
+	// Wait for the caches to be synced before starting workers
+	glog.Info("Waiting for informer caches to sync")
+	if ok := cache.WaitForCacheSync(stopCh, c.podSynced, c.esSynced); !ok {
+		return fmt.Errorf("failed to wait for caches to sync")
+	}
 	
-	// Wait till we receive a stop signal
+	glog.Info("Starting workers")
+	// Launch two workers to process Foo resources
+	for i := 0; i < threadiness; i++ {
+		go wait.Until(c.runWorker, time.Second, stopCh)
+	}
+	
+	glog.Info("Started workers")
 	<-stopCh
+	glog.Info("Shutting down workers")
+	
+	return nil
 }
 
-// NewNamespaceController creates a new NewNamespaceController
-func NewESController(kclient *kubernetes.Clientset) *ESController {
-	namespaceWatcher := &ESController{}
-	
-		
-	// Create informer for watching Namespaces
-	namespaceInformer := cache.NewSharedIndexInformer(
-		&cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return kclient.CoreV1().Namespaces().List(options)
-			},
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return kclient.CoreV1().Namespaces().Watch(options)
-			},
-		},
-		&v1.Namespace{},
-		3*time.Minute,
-		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-	)
-	
-	namespaceInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: showInfo("ADD"),
-		UpdateFunc: func(oldObj, newObj interface{}) {
-			fmt.Printf("OLDOBJ --> %v\n", oldObj)
-			fmt.Printf("NEWOBJ --> %v\n", newObj)
-		},
-		DeleteFunc: showInfo("DELETE"),
-	})
-	namespaceWatcher.kclient = kclient
-	namespaceWatcher.namespaceInformer = namespaceInformer
-	
-	return namespaceWatcher
-}
-
-func showInfo(prefix string) func(obj interface{}) {
-	return func(obj interface{}) {
-		fmt.Printf("%s --> %v\n", prefix, obj)
+// runWorker is a long-running function that will continually call the
+// processNextWorkItem function in order to read and process a message on the
+// workqueue.
+func (c *Controller) runWorker() {
+	for c.processNextWorkItem() {
 	}
 }
 
-func (c *ESController) createRoleBinding(obj interface{}) {
-	namespaceObj := obj.(*v1.Namespace)
-	namespaceName := namespaceObj.Name
+// processNextWorkItem will read a single work item off the workqueue and
+// attempt to process it, by calling the syncHandler.
+func (c *Controller) processNextWorkItem() bool {
+	obj, shutdown := c.workqueue.Get()
 	
-	roleBinding := &v1beta1.RoleBinding{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "RoleBinding",
-			APIVersion: "rbac.authorization.k8s.io/v1beta1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("ad-kubernetes-%s", namespaceName),
-			Namespace: namespaceName,
-		},
-		Subjects: []v1beta1.Subject{
-			v1beta1.Subject{
-				Kind: "Group",
-				Name: fmt.Sprintf("ad-kubernetes-%s", namespaceName),
-			},
-		},
-		RoleRef: v1beta1.RoleRef{
-			APIGroup: "rbac.authorization.k8s.io",
-			Kind:     "ClusterRole",
-			Name:     "edit",
-		},
+	if shutdown {
+		return false
 	}
 	
-	_, err := c.kclient.RbacV1beta1().RoleBindings(namespaceName).Create(roleBinding)
+	// We wrap this block in a func so we can defer c.workqueue.Done.
+	err := func(obj interface{}) error {
+		// We call Done here so the workqueue knows we have finished
+		// processing this item. We also must remember to call Forget if we
+		// do not want this work item being re-queued. For example, we do
+		// not call Forget if a transient error occurs, instead the item is
+		// put back on the workqueue and attempted again after a back-off
+		// period.
+		defer c.workqueue.Done(obj)
+		var key string
+		var ok bool
+		// We expect strings to come off the workqueue. These are of the
+		// form namespace/name. We do this as the delayed nature of the
+		// workqueue means the items in the informer cache may actually be
+		// more up to date that when the item was initially put onto the
+		// workqueue.
+		if key, ok = obj.(string); !ok {
+			// As the item in the workqueue is actually invalid, we call
+			// Forget here else we'd go into a loop of attempting to
+			// process a work item that is invalid.
+			c.workqueue.Forget(obj)
+			runtime.HandleError(fmt.Errorf("expected string in workqueue but got %#v", obj))
+			return nil
+		}
+		// Run the syncHandler, passing it the namespace/name string of the
+		// Foo resource to be synced.
+		if err := c.syncHandler(key); err != nil {
+			return fmt.Errorf("error syncing '%s': %s", key, err.Error())
+		}
+		// Finally, if no error occurs we Forget this item so it does not
+		// get queued again until another change happens.
+		c.workqueue.Forget(obj)
+		glog.Infof("Successfully synced '%s'", key)
+		return nil
+	}(obj)
 	
 	if err != nil {
-		log.Println(fmt.Sprintf("Failed to create Role Binding: %s", err.Error()))
-	} else {
-		log.Println(fmt.Sprintf("Created AD RoleBinding for Namespace: %s", roleBinding.Name))
+		runtime.HandleError(err)
+		return true
 	}
+	
+	return true
+}
+
+// syncHandler compares the actual state with the desired, and attempts to
+// converge the two. It then updates the Status block of the Foo resource
+// with the current status of the resource.
+func (c *Controller) syncHandler(key string) error {
+	// Convert the namespace/name string into a distinct namespace and name
+	namespace, name, err := cache.SplitMetaNamespaceKey(key)
+	if err != nil {
+		runtime.HandleError(fmt.Errorf("invalid resource key: %s", key))
+		return nil
+	}
+	
+	// Get the Foo resource with this namespace/name
+	escluster, err := c.esLister.EsClusters(namespace).Get(name)
+	if err != nil {
+		// The Foo resource may no longer exist, in which case we stop
+		// processing.
+		if errors.IsNotFound(err) {
+			runtime.HandleError(fmt.Errorf("foo '%s' in work queue no longer exists", key))
+			return nil
+		}
+		
+		return err
+	}
+	var pods []*corev1.Pod
+	for i := int32(1); i <= *escluster.Spec.Replicas; i++ {
+		dpod := newPod(escluster, i)
+		pods = append(pods, dpod)
+		
+		//TODO check each pod
+		rpod, err := c.podLister.Pods(escluster.Namespace).Get(dpod.Name)
+		if errors.IsNotFound(err) {
+			rpod, err = c.kubeclientset.CoreV1().Pods(escluster.Namespace).Create(dpod)
+		}
+		if err != nil {
+			//TODO maybe I should do more actions, not just break the loop and return
+			return err
+		}
+		if !metav1.IsControlledBy(rpod, escluster) {
+			msg := fmt.Sprintf(MessageResourceExists, rpod.Name)
+			c.recorder.Event(escluster, corev1.EventTypeWarning, ErrResourceExists, msg)
+			return fmt.Errorf(msg)
+		}
+		// pod's five status.phase: Pending, Running, Succeeded, Failed
+		if rpod.Status.Phase != "Pending" || rpod.Status.Phase != "Running" {
+			rpod, err = c.kubeclientset.CoreV1().Pods(escluster.Namespace).Update(dpod)
+		}
+		if err != nil {
+			return err
+		}
+		pods = append(pods, rpod)
+	}
+	
+	// Finally, we update the status block of the Foo resource to reflect the
+	// current state of the world
+	err = c.updateFooStatus(escluster, pods)
+	if err != nil {
+		return err
+	}
+	
+	c.recorder.Event(escluster, corev1.EventTypeNormal, SuccessSynced, MessageResourceSynced)
+	return nil
+}
+
+func (c *Controller) updateFooStatus(escluster *esv1.EsCluster, pods []*corev1.Pod) error {
+	// NEVER modify objects from the store. It's a read-only, local cache.
+	// You can use DeepCopy() to make a deep copy of original object and modify this copy
+	// Or create a copy manually for better performance
+	esCopy := escluster.DeepCopy()
+	//TODO update pod status to escluster.PodsStatus
+	esCopy.Status.PodsStatus = make([]esv1.EsInstanceStatus, 0)
+	
+	for _, pod := range pods {
+		status := esv1.EsInstanceStatus{
+			PodName:     pod.Name,
+			PodHostName: pod.Spec.Hostname,
+			NodeName:    pod.Spec.NodeName,
+			Status:      pod.Status,
+		}
+		esCopy.Status.PodsStatus = append(esCopy.Status.PodsStatus, status)
+	}
+	
+	// If the CustomResourceSubresources feature gate is not enabled,
+	// we must use Update instead of UpdateStatus to update the Status block of the Foo resource.
+	// UpdateStatus will not allow changes to the Spec of the resource,
+	// which is ideal for ensuring nothing other than resource status has been updated.
+	_, err := c.esclientset.AugustoV1().EsClusters(escluster.Namespace).Update(esCopy)
+	return err
+}
+
+// enqueueFoo takes a Foo resource and converts it into a namespace/name
+// string which is then put onto the work queue. This method should *not* be
+// passed resources of any type other than Foo.
+func (c *Controller) enqueueFoo(obj interface{}) {
+	var key string
+	var err error
+	if key, err = cache.MetaNamespaceKeyFunc(obj); err != nil {
+		runtime.HandleError(err)
+		return
+	}
+	c.workqueue.AddRateLimited(key)
+}
+
+// handleObject will take any resource implementing metav1.Object and attempt
+// to find the Foo resource that 'owns' it. It does this by looking at the
+// objects metadata.ownerReferences field for an appropriate OwnerReference.
+// It then enqueues that Foo resource to be processed. If the object does not
+// have an appropriate OwnerReference, it will simply be skipped.
+func (c *Controller) handleObject(obj interface{}) {
+	var object metav1.Object
+	var ok bool
+	if object, ok = obj.(metav1.Object); !ok {
+		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			runtime.HandleError(fmt.Errorf("error decoding object, invalid type"))
+			return
+		}
+		object, ok = tombstone.Obj.(metav1.Object)
+		if !ok {
+			runtime.HandleError(fmt.Errorf("error decoding object tombstone, invalid type"))
+			return
+		}
+		glog.V(4).Infof("Recovered deleted object '%s' from tombstone", object.GetName())
+	}
+	glog.V(4).Infof("Processing object: %s", object.GetName())
+	if ownerRef := metav1.GetControllerOf(object); ownerRef != nil {
+		// If this object is not owned by a Foo, we should not do anything more
+		// with it.
+		if ownerRef.Kind != esv1.CRD_KIND {
+			return
+		}
+		escluster, err := c.esLister.EsClusters(object.GetNamespace()).Get(ownerRef.Name)
+		if err != nil {
+			glog.V(4).Infof("ignoring orphaned object '%s' of escluster '%s'", object.GetSelfLink(), ownerRef.Name)
+			return
+		}
+		c.enqueueFoo(escluster)
+		return
+	}
+}
+
+func newPod(escluster *esv1.EsCluster, index int32) *corev1.Pod {
+	labels := map[string]string{
+		"app":        "elastic-search",
+		"controller": escluster.Name,
+	}
+	
+	var envArr []corev1.EnvVar = make([]corev1.EnvVar, len(escluster.Spec.Env))
+	copy(envArr, escluster.Spec.Env)
+	envArr = append(envArr, corev1.EnvVar{
+		Name: "NAMESPACE",
+		ValueFrom: &corev1.EnvVarSource{
+			FieldRef: &corev1.ObjectFieldSelector{
+				FieldPath: "metadata.namespace",
+			},
+		},
+	})
+	
+	envArr = append(envArr, corev1.EnvVar{
+		Name: "node.name",
+		ValueFrom: &corev1.EnvVarSource{
+			FieldRef: &corev1.ObjectFieldSelector{
+				FieldPath: "metadata.name",
+			},
+		},
+	})
+	
+	var pod *corev1.Pod = nil
+	if index > 0 && index <= *escluster.Spec.Replicas {
+		pod = &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      escluster.Spec.ESClusterName + "-" + strconv.Itoa(int(index)),
+				Namespace: escluster.Namespace,
+				Labels:    labels,
+				OwnerReferences: []metav1.OwnerReference{
+					*metav1.NewControllerRef(escluster, schema.GroupVersionKind{
+						Group:   esv1.SchemeGroupVersion.Group,
+						Version: esv1.SchemeGroupVersion.Version,
+						Kind:    esv1.CRD_KIND,
+					}),
+				},
+			},
+			//TODO write pod's spec
+			Spec: corev1.PodSpec{
+				Containers: []corev1.Container{
+					{
+						Name:  "elasticsearch-logging",
+						Image: escluster.Spec.EsImage,
+						Env:   envArr,
+						Resources: escluster.Spec.Resource,
+						//corev1.ResourceRequirements{
+						//	Limits: corev1.ResourceList{
+						//		//TODO generate quantity from spec
+						//		corev1.ResourceCPU: resource.MustParse("1500m"),
+						//	},
+						//	Requests: corev1.ResourceList{
+						//		corev1.ResourceCPU: resource.MustParse("1500m"),
+						//	},
+						//},
+						Ports: []corev1.ContainerPort{
+							{
+								ContainerPort: 9200,
+								Name:          "db",
+								Protocol:      "TCP",
+							},
+							{
+								ContainerPort: 9300,
+								Name:          "transport",
+								Protocol:      "TCP",
+							},
+						},
+					},
+				},
+				InitContainers: []corev1.Container{
+					{
+						Name: "elasticsearch-logging-init",
+						Command: []string{
+							"/sbin/sysctl",
+							"-w",
+							"vm.max_map_count=262144",
+						},
+						Image: "alpine:3.6",
+						SecurityContext: &corev1.SecurityContext{
+							Privileged: &podSecurityContextPrivileged,
+						},
+					},
+				},
+				Volumes: []corev1.Volume{
+					corev1.Volume{
+						Name: "elastic-logging",
+						VolumeSource: corev1.VolumeSource{
+							HostPath: &corev1.HostPathVolumeSource{
+								Path: escluster.Spec.DataPath + string(os.PathSeparator) + escluster.Spec.ESClusterName + "-" + strconv.Itoa(int(index)),
+							},
+						},
+					},
+				},
+				TerminationGracePeriodSeconds: &podTerminationGracePeriodSeconds,
+			},
+		}
+	}
+	
+	return pod
 }
