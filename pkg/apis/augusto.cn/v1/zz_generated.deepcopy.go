@@ -94,6 +94,7 @@ func (in *EsClusterSpec) DeepCopyInto(out *EsClusterSpec) {
 		*out = new(int32)
 		**out = **in
 	}
+	in.Resource.DeepCopyInto(&out.Resource)
 	if in.Env != nil {
 		in, out := &in.Env, &out.Env
 		*out = make([]corev1.EnvVar, len(*in))
