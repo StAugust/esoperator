@@ -47,7 +47,6 @@ type EsInstanceStatus struct {
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
 // EsClusterList is a list of EsCluster resources
 type EsClusterList struct {
 	metav1.TypeMeta   `json:",inline"`
