@@ -1,5 +1,5 @@
 /*
-Copyright The Kubernetes Authors.
+Copyright 2018 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ package v1
 import (
 	v1 "github.com/staugust/esoperator/pkg/apis/augusto.cn/v1"
 	scheme "github.com/staugust/esoperator/pkg/client/clientset/versioned/scheme"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	rest "k8s.io/client-go/rest"
@@ -38,11 +38,11 @@ type EsClusterInterface interface {
 	Create(*v1.EsCluster) (*v1.EsCluster, error)
 	Update(*v1.EsCluster) (*v1.EsCluster, error)
 	UpdateStatus(*v1.EsCluster) (*v1.EsCluster, error)
-	Delete(name string, options *metav1.DeleteOptions) error
-	DeleteCollection(options *metav1.DeleteOptions, listOptions metav1.ListOptions) error
-	Get(name string, options metav1.GetOptions) (*v1.EsCluster, error)
-	List(opts metav1.ListOptions) (*v1.EsClusterList, error)
-	Watch(opts metav1.ListOptions) (watch.Interface, error)
+	Delete(name string, options *meta_v1.DeleteOptions) error
+	DeleteCollection(options *meta_v1.DeleteOptions, listOptions meta_v1.ListOptions) error
+	Get(name string, options meta_v1.GetOptions) (*v1.EsCluster, error)
+	List(opts meta_v1.ListOptions) (*v1.EsClusterList, error)
+	Watch(opts meta_v1.ListOptions) (watch.Interface, error)
 	Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.EsCluster, err error)
 	EsClusterExpansion
 }
@@ -62,7 +62,7 @@ func newEsClusters(c *AugustoV1Client, namespace string) *esClusters {
 }
 
 // Get takes name of the esCluster, and returns the corresponding esCluster object, and an error if there is any.
-func (c *esClusters) Get(name string, options metav1.GetOptions) (result *v1.EsCluster, err error) {
+func (c *esClusters) Get(name string, options meta_v1.GetOptions) (result *v1.EsCluster, err error) {
 	result = &v1.EsCluster{}
 	err = c.client.Get().
 		Namespace(c.ns).
@@ -75,7 +75,7 @@ func (c *esClusters) Get(name string, options metav1.GetOptions) (result *v1.EsC
 }
 
 // List takes label and field selectors, and returns the list of EsClusters that match those selectors.
-func (c *esClusters) List(opts metav1.ListOptions) (result *v1.EsClusterList, err error) {
+func (c *esClusters) List(opts meta_v1.ListOptions) (result *v1.EsClusterList, err error) {
 	result = &v1.EsClusterList{}
 	err = c.client.Get().
 		Namespace(c.ns).
@@ -87,7 +87,7 @@ func (c *esClusters) List(opts metav1.ListOptions) (result *v1.EsClusterList, er
 }
 
 // Watch returns a watch.Interface that watches the requested esClusters.
-func (c *esClusters) Watch(opts metav1.ListOptions) (watch.Interface, error) {
+func (c *esClusters) Watch(opts meta_v1.ListOptions) (watch.Interface, error) {
 	opts.Watch = true
 	return c.client.Get().
 		Namespace(c.ns).
@@ -138,7 +138,7 @@ func (c *esClusters) UpdateStatus(esCluster *v1.EsCluster) (result *v1.EsCluster
 }
 
 // Delete takes name of the esCluster and deletes it. Returns an error if one occurs.
-func (c *esClusters) Delete(name string, options *metav1.DeleteOptions) error {
+func (c *esClusters) Delete(name string, options *meta_v1.DeleteOptions) error {
 	return c.client.Delete().
 		Namespace(c.ns).
 		Resource("esclusters").
@@ -149,7 +149,7 @@ func (c *esClusters) Delete(name string, options *metav1.DeleteOptions) error {
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *esClusters) DeleteCollection(options *metav1.DeleteOptions, listOptions metav1.ListOptions) error {
+func (c *esClusters) DeleteCollection(options *meta_v1.DeleteOptions, listOptions meta_v1.ListOptions) error {
 	return c.client.Delete().
 		Namespace(c.ns).
 		Resource("esclusters").

@@ -1,5 +1,5 @@
 /*
-Copyright The Kubernetes Authors.
+Copyright 2018 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ limitations under the License.
 package fake
 
 import (
-	augustocnv1 "github.com/staugust/esoperator/pkg/apis/augusto.cn/v1"
+	augusto_cn_v1 "github.com/staugust/esoperator/pkg/apis/augusto.cn/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -39,20 +39,20 @@ var esclustersResource = schema.GroupVersionResource{Group: "augusto.cn", Versio
 var esclustersKind = schema.GroupVersionKind{Group: "augusto.cn", Version: "v1", Kind: "EsCluster"}
 
 // Get takes name of the esCluster, and returns the corresponding esCluster object, and an error if there is any.
-func (c *FakeEsClusters) Get(name string, options v1.GetOptions) (result *augustocnv1.EsCluster, err error) {
+func (c *FakeEsClusters) Get(name string, options v1.GetOptions) (result *augusto_cn_v1.EsCluster, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(esclustersResource, c.ns, name), &augustocnv1.EsCluster{})
+		Invokes(testing.NewGetAction(esclustersResource, c.ns, name), &augusto_cn_v1.EsCluster{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*augustocnv1.EsCluster), err
+	return obj.(*augusto_cn_v1.EsCluster), err
 }
 
 // List takes label and field selectors, and returns the list of EsClusters that match those selectors.
-func (c *FakeEsClusters) List(opts v1.ListOptions) (result *augustocnv1.EsClusterList, err error) {
+func (c *FakeEsClusters) List(opts v1.ListOptions) (result *augusto_cn_v1.EsClusterList, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(esclustersResource, esclustersKind, c.ns, opts), &augustocnv1.EsClusterList{})
+		Invokes(testing.NewListAction(esclustersResource, esclustersKind, c.ns, opts), &augusto_cn_v1.EsClusterList{})
 
 	if obj == nil {
 		return nil, err
@@ -62,8 +62,8 @@ func (c *FakeEsClusters) List(opts v1.ListOptions) (result *augustocnv1.EsCluste
 	if label == nil {
 		label = labels.Everything()
 	}
-	list := &augustocnv1.EsClusterList{ListMeta: obj.(*augustocnv1.EsClusterList).ListMeta}
-	for _, item := range obj.(*augustocnv1.EsClusterList).Items {
+	list := &augusto_cn_v1.EsClusterList{}
+	for _, item := range obj.(*augusto_cn_v1.EsClusterList).Items {
 		if label.Matches(labels.Set(item.Labels)) {
 			list.Items = append(list.Items, item)
 		}
@@ -79,43 +79,43 @@ func (c *FakeEsClusters) Watch(opts v1.ListOptions) (watch.Interface, error) {
 }
 
 // Create takes the representation of a esCluster and creates it.  Returns the server's representation of the esCluster, and an error, if there is any.
-func (c *FakeEsClusters) Create(esCluster *augustocnv1.EsCluster) (result *augustocnv1.EsCluster, err error) {
+func (c *FakeEsClusters) Create(esCluster *augusto_cn_v1.EsCluster) (result *augusto_cn_v1.EsCluster, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(esclustersResource, c.ns, esCluster), &augustocnv1.EsCluster{})
+		Invokes(testing.NewCreateAction(esclustersResource, c.ns, esCluster), &augusto_cn_v1.EsCluster{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*augustocnv1.EsCluster), err
+	return obj.(*augusto_cn_v1.EsCluster), err
 }
 
 // Update takes the representation of a esCluster and updates it. Returns the server's representation of the esCluster, and an error, if there is any.
-func (c *FakeEsClusters) Update(esCluster *augustocnv1.EsCluster) (result *augustocnv1.EsCluster, err error) {
+func (c *FakeEsClusters) Update(esCluster *augusto_cn_v1.EsCluster) (result *augusto_cn_v1.EsCluster, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(esclustersResource, c.ns, esCluster), &augustocnv1.EsCluster{})
+		Invokes(testing.NewUpdateAction(esclustersResource, c.ns, esCluster), &augusto_cn_v1.EsCluster{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*augustocnv1.EsCluster), err
+	return obj.(*augusto_cn_v1.EsCluster), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeEsClusters) UpdateStatus(esCluster *augustocnv1.EsCluster) (*augustocnv1.EsCluster, error) {
+func (c *FakeEsClusters) UpdateStatus(esCluster *augusto_cn_v1.EsCluster) (*augusto_cn_v1.EsCluster, error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(esclustersResource, "status", c.ns, esCluster), &augustocnv1.EsCluster{})
+		Invokes(testing.NewUpdateSubresourceAction(esclustersResource, "status", c.ns, esCluster), &augusto_cn_v1.EsCluster{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*augustocnv1.EsCluster), err
+	return obj.(*augusto_cn_v1.EsCluster), err
 }
 
 // Delete takes name of the esCluster and deletes it. Returns an error if one occurs.
 func (c *FakeEsClusters) Delete(name string, options *v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(esclustersResource, c.ns, name), &augustocnv1.EsCluster{})
+		Invokes(testing.NewDeleteAction(esclustersResource, c.ns, name), &augusto_cn_v1.EsCluster{})
 
 	return err
 }
@@ -124,17 +124,17 @@ func (c *FakeEsClusters) Delete(name string, options *v1.DeleteOptions) error {
 func (c *FakeEsClusters) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
 	action := testing.NewDeleteCollectionAction(esclustersResource, c.ns, listOptions)
 
-	_, err := c.Fake.Invokes(action, &augustocnv1.EsClusterList{})
+	_, err := c.Fake.Invokes(action, &augusto_cn_v1.EsClusterList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched esCluster.
-func (c *FakeEsClusters) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *augustocnv1.EsCluster, err error) {
+func (c *FakeEsClusters) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *augusto_cn_v1.EsCluster, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(esclustersResource, c.ns, name, data, subresources...), &augustocnv1.EsCluster{})
+		Invokes(testing.NewPatchSubresourceAction(esclustersResource, c.ns, name, data, subresources...), &augusto_cn_v1.EsCluster{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*augustocnv1.EsCluster), err
+	return obj.(*augusto_cn_v1.EsCluster), err
 }

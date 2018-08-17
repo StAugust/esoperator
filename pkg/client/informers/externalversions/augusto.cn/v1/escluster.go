@@ -1,5 +1,5 @@
 /*
-Copyright The Kubernetes Authors.
+Copyright 2018 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,11 +21,11 @@ package v1
 import (
 	time "time"
 
-	augustocnv1 "github.com/staugust/esoperator/pkg/apis/augusto.cn/v1"
+	augusto_cn_v1 "github.com/staugust/esoperator/pkg/apis/augusto.cn/v1"
 	versioned "github.com/staugust/esoperator/pkg/client/clientset/versioned"
 	internalinterfaces "github.com/staugust/esoperator/pkg/client/informers/externalversions/internalinterfaces"
 	v1 "github.com/staugust/esoperator/pkg/client/listers/augusto.cn/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
 	cache "k8s.io/client-go/tools/cache"
@@ -57,20 +57,20 @@ func NewEsClusterInformer(client versioned.Interface, namespace string, resyncPe
 func NewFilteredEsClusterInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
 		&cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+			ListFunc: func(options meta_v1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
 				return client.AugustoV1().EsClusters(namespace).List(options)
 			},
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+			WatchFunc: func(options meta_v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
 				return client.AugustoV1().EsClusters(namespace).Watch(options)
 			},
 		},
-		&augustocnv1.EsCluster{},
+		&augusto_cn_v1.EsCluster{},
 		resyncPeriod,
 		indexers,
 	)
@@ -81,7 +81,7 @@ func (f *esClusterInformer) defaultInformer(client versioned.Interface, resyncPe
 }
 
 func (f *esClusterInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&augustocnv1.EsCluster{}, f.defaultInformer)
+	return f.factory.InformerFor(&augusto_cn_v1.EsCluster{}, f.defaultInformer)
 }
 
 func (f *esClusterInformer) Lister() v1.EsClusterLister {
