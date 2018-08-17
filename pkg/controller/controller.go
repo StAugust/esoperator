@@ -403,9 +403,13 @@ func newDeploy(escluster *esv1.EsCluster, index int32) *appsv1.Deployment {
 					}),
 				},
 			},
+			
 			//TODO write pod's spec
 			Spec: appsv1.DeploymentSpec{
 				Replicas: &deployReplicas,
+				Selector:&metav1.LabelSelector{
+					MatchLabels:labels,
+				},
 				Template: corev1.PodTemplateSpec{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      escluster.Name + "-" + strconv.Itoa(int(index)),
