@@ -46,7 +46,7 @@ func main() {
 	esInformerFactory := informers.NewSharedInformerFactory(esClient, time.Second*30)
 	
 	controller := controller.NewController(kubeClient, esClient,
-		kubeInformerFactory.Core().V1().Pods(),
+		kubeInformerFactory.Apps().V1().Deployments(),
 		esInformerFactory.Augusto().V1().EsClusters())
 	
 	go kubeInformerFactory.Start(stopCh)
