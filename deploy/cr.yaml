@@ -1,0 +1,9 @@
+apiVersion: "augusto.cn/v1"
+kind: "EsCluster"
+metadata:
+  name: "test1"
+spec:
+  esimage: "skydiscovery/elasticsearch:6.2.4"
+  replicas: 3
+  datapath: "/SkyDiscovery/cephfs/jhyao/es"
+
