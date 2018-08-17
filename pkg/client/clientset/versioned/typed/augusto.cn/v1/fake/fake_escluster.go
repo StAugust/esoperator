@@ -1,5 +1,5 @@
 /*
-Copyright 2018 The Kubernetes Authors.
+Copyright The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -62,7 +62,7 @@ func (c *FakeEsClusters) List(opts v1.ListOptions) (result *augusto_cn_v1.EsClus
 	if label == nil {
 		label = labels.Everything()
 	}
-	list := &augusto_cn_v1.EsClusterList{}
+	list := &augusto_cn_v1.EsClusterList{ListMeta: obj.(*augusto_cn_v1.EsClusterList).ListMeta}
 	for _, item := range obj.(*augusto_cn_v1.EsClusterList).Items {
 		if label.Matches(labels.Set(item.Labels)) {
 			list.Items = append(list.Items, item)
