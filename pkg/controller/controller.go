@@ -254,10 +254,11 @@ func (c *Controller) syncHandler(key string) error {
 			c.recorder.Event(escluster, corev1.EventTypeWarning, ErrResourceExists, msg)
 			return fmt.Errorf(msg)
 		}
-		// pod's five status.phase: Pending, Running, Succeeded, Failed
+		// pod's five status.phase: Pending, Running, Succeeded, Failed, Unknown
 		if rpod.Status.Phase != "Pending" || rpod.Status.Phase != "Running" {
-			c.kubeclientset.CoreV1().Pods(escluster.Namespace).Delete(dpod.Name, metav1.NewDeleteOptions(30))
-			rpod, err = c.kubeclientset.CoreV1().Pods(escluster.Namespace).Create(dpod)
+			//c.kubeclientset.CoreV1().Pods(escluster.Namespace).Delete(dpod.Name, metav1.NewDeleteOptions(30))
+			//rpod, err = c.kubeclientset.CoreV1().Pods(escluster.Namespace).Create(dpod)
+			rpod, err = c.kubeclientset.CoreV1().Pods(escluster.Namespace).Update(dpod)
 		}
 		if err != nil {
 			return err
@@ -398,9 +399,9 @@ func newPod(escluster *esv1.EsCluster, index int32) *corev1.Pod {
 			Spec: corev1.PodSpec{
 				Containers: []corev1.Container{
 					{
-						Name:  "elasticsearch-logging",
-						Image: escluster.Spec.EsImage,
-						Env:   envArr,
+						Name:      "elasticsearch-logging",
+						Image:     escluster.Spec.EsImage,
+						Env:       envArr,
 						Resources: escluster.Spec.Resource,
 						//corev1.ResourceRequirements{
 						//	Limits: corev1.ResourceList{
@@ -421,6 +422,12 @@ func newPod(escluster *esv1.EsCluster, index int32) *corev1.Pod {
 								ContainerPort: 9300,
 								Name:          "transport",
 								Protocol:      "TCP",
+							},
+						},
+						VolumeMounts: []corev1.VolumeMount{
+							{
+								Name:      "elastic-logging",
+								MountPath: "/data",
 							},
 						},
 					},
