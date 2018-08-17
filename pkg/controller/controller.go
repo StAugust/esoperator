@@ -383,7 +383,7 @@ func newPod(escluster *esv1.EsCluster, index int32) *corev1.Pod {
 	if index > 0 && index <= *escluster.Spec.Replicas {
 		pod = &corev1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      escluster.Spec.ESClusterName + "-" + strconv.Itoa(int(index)),
+				Name:      escluster.Name + "-" + strconv.Itoa(int(index)),
 				Namespace: escluster.Namespace,
 				Labels:    labels,
 				OwnerReferences: []metav1.OwnerReference{
@@ -444,7 +444,7 @@ func newPod(escluster *esv1.EsCluster, index int32) *corev1.Pod {
 						Name: "elastic-logging",
 						VolumeSource: corev1.VolumeSource{
 							HostPath: &corev1.HostPathVolumeSource{
-								Path: escluster.Spec.DataPath + string(os.PathSeparator) + escluster.Spec.ESClusterName + "-" + strconv.Itoa(int(index)),
+								Path: escluster.Spec.DataPath + string(os.PathSeparator) + escluster.Name + "-" + strconv.Itoa(int(index)),
 							},
 						},
 					},
