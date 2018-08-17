@@ -31,7 +31,6 @@ type EsClusterSpec struct {
 	EsImage  string          `json:"esimage"`
 	Replicas *int32          `json:"replicas"`
 	DataPath string          `json:"datapath",omitempty`
-	ESClusterName string     `json:"esclustername"`
 	Resource  corev1.ResourceRequirements `json:"resource"`
 	Env      []corev1.EnvVar `json:"env,omitempty" patchStrategy:"merge" patchMergeKey:"name" protobuf:"bytes,7,rep,name=env"`
 	

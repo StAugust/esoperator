@@ -256,7 +256,8 @@ func (c *Controller) syncHandler(key string) error {
 		}
 		// pod's five status.phase: Pending, Running, Succeeded, Failed
 		if rpod.Status.Phase != "Pending" || rpod.Status.Phase != "Running" {
-			rpod, err = c.kubeclientset.CoreV1().Pods(escluster.Namespace).Update(dpod)
+			c.kubeclientset.CoreV1().Pods(escluster.Namespace).Delete(dpod.Name, metav1.NewDeleteOptions(30))
+			rpod, err = c.kubeclientset.CoreV1().Pods(escluster.Namespace).Create(dpod)
 		}
 		if err != nil {
 			return err
