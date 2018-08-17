@@ -986,7 +986,7 @@ func TestValidCert(t *testing.T) {
 		{certKey{domain: "example.org"}, key3, [][]byte{cert3}, false},
 	}
 	for i, test := range tt {
-		leaf, err := validCert(test.ck, test.cert, test.key, now)
+		leaf, err := validCert(test.ck, test.cert, test.key)
 		if err != nil && test.ok {
 			t.Errorf("%d: err = %v", i, err)
 		}
