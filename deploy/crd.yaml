@@ -1,0 +1,13 @@
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  name: esclusters.augusto.cn
+spec:
+  group: augusto.cn
+  names:
+    kind: EsCluster
+    listKind: EsClusterList
+    plural: esclusters
+    singular: escluster
+  scope: Namespaced
+  version: v1
