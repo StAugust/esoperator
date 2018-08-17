@@ -1,4 +1,4 @@
-FROM openjdk:8-jdk-alpine
+FROM gcr.io/google_appengine/golang
 MAINTAINER  Augusto <staugusto@yeah.net>
 
 #RUN apk add --update ca-certificates openssl && \
