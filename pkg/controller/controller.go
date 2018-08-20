@@ -379,6 +379,7 @@ func newDeploy(escluster *esv1.EsCluster, index int32) *appsv1.Deployment {
 	labels := map[string]string{
 		"app":        "elastic-search",
 		"controller": escluster.Name,
+		"deploy-index" : escluster.Name + "-" + strconv.Itoa(int(index)),
 	}
 	
 	var envArr []corev1.EnvVar = make([]corev1.EnvVar, len(escluster.Spec.Env))
