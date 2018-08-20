@@ -49,8 +49,8 @@ type Controller struct {
 	
 	deployLister applisters.DeploymentLister
 	deploySynced cache.InformerSynced
-	esLister  listers.EsClusterLister
-	esSynced  cache.InformerSynced
+	esLister     listers.EsClusterLister
+	esSynced     cache.InformerSynced
 	
 	// workqueue is a rate limited work queue. This is used to queue work to be
 	// processed instead of performing it as soon as a change happens. This
@@ -83,8 +83,8 @@ func NewController(
 	controller := &Controller{
 		kubeclientset: kubeclientset,
 		esclientset:   esclientset,
-		deployLister:     pInformer.Lister(),
-		deploySynced:     pInformer.Informer().HasSynced,
+		deployLister:  pInformer.Lister(),
+		deploySynced:  pInformer.Informer().HasSynced,
 		esLister:      esInformer.Lister(),
 		esSynced:      esInformer.Informer().HasSynced,
 		workqueue:     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "EsClusters"),
@@ -287,13 +287,26 @@ func (c *Controller) updateFooStatus(escluster *esv1.EsCluster, deploys []*appsv
 	esCopy.Status.PodsStatus = make([]esv1.EsInstanceStatus, 0)
 	
 	for _, deploy := range deploys {
-		pod , err := c.kubeclientset.CoreV1().Pods(escluster.Namespace).Get(deploy.Name, metav1.GetOptions{
+		var ls string
+		var sep = ""
+		for key, val := range deploy.Spec.Selector.MatchLabels {
+			ls = sep + key + "=" + val
+			sep = ","
+		}
 		
+		var pods, err = c.kubeclientset.CoreV1().Pods(escluster.Namespace).List(metav1.ListOptions{
+			LabelSelector: ls,
 		})
 		if err != nil {
-			fmt.Printf("Error: %v --> %s\n",err,  deploy.Name)
+			fmt.Printf("Error: %v --> %s\n", err, deploy.Name)
 			continue
 		}
+		fmt.Printf("Found %d pods for %s \n", len(pods.Items), deploy.Name)
+		if len(pods.Items) != 1 {
+			fmt.Printf("%s is not in a good state, so just jump to next deployment", deploy.Name)
+			continue
+		}
+		pod := pods.Items[0]
 		status := esv1.EsInstanceStatus{
 			PodName:     deploy.Name,
 			PodHostName: pod.Spec.Hostname,
@@ -407,8 +420,8 @@ func newDeploy(escluster *esv1.EsCluster, index int32) *appsv1.Deployment {
 			//TODO write pod's spec
 			Spec: appsv1.DeploymentSpec{
 				Replicas: &deployReplicas,
-				Selector:&metav1.LabelSelector{
-					MatchLabels:labels,
+				Selector: &metav1.LabelSelector{
+					MatchLabels: labels,
 				},
 				Template: corev1.PodTemplateSpec{
 					ObjectMeta: metav1.ObjectMeta{
