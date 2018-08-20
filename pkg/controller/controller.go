@@ -298,7 +298,7 @@ func (c *Controller) updateFooStatus(escluster *esv1.EsCluster, deploys []*appsv
 			LabelSelector: ls,
 		})
 		if err != nil {
-			fmt.Printf("Error: %v --> %s\n", err, deploy.Name)
+			fmt.Printf("Error: %v --> %s with labelSelector --> %s\n", err, deploy.Name,ls)
 			continue
 		}
 		fmt.Printf("Found %d pods for %s \n", len(pods.Items), deploy.Name)
