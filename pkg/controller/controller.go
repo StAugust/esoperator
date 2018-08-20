@@ -108,8 +108,8 @@ func NewController(
 	pInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: controller.handleObject,
 		UpdateFunc: func(old, new interface{}) {
-			newDepl := new.(*corev1.Pod)
-			oldDepl := old.(*corev1.Pod)
+			newDepl := new.(*appsv1.Deployment)
+			oldDepl := old.(*appsv1.Deployment)
 			if newDepl.ResourceVersion == oldDepl.ResourceVersion {
 				// Periodic resync will send update events for all known Deployments.
 				// Two different versions of the same Deployment will always have different RVs.
@@ -241,7 +241,7 @@ func (c *Controller) syncHandler(key string) error {
 	for i := int32(1); i <= *escluster.Spec.Replicas; i++ {
 		newdeploy := newDeploy(escluster, i)
 		
-		//TODO check each pod
+		//TODO check each deployment
 		curdeploy, err := c.deployLister.Deployments(escluster.Namespace).Get(newdeploy.Name)
 		if errors.IsNotFound(err) {
 			curdeploy, err = c.kubeclientset.AppsV1().Deployments(escluster.Namespace).Create(newdeploy)
