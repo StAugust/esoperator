@@ -290,7 +290,7 @@ func (c *Controller) updateFooStatus(escluster *esv1.EsCluster, deploys []*appsv
 		var ls string
 		var sep = ""
 		for key, val := range deploy.Spec.Selector.MatchLabels {
-			ls = sep + key + "=" + val
+			ls += sep + key + "=" + val
 			sep = ","
 		}
 		
