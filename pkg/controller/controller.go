@@ -6,7 +6,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/client-go/tools/record"
-	"github.com/golang/glog"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"fmt"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -27,6 +26,8 @@ import (
 	esv1 "github.com/staugust/esoperator/pkg/apis/augusto.cn/v1"
 	"os"
 	"strconv"
+	"github.com/Sirupsen/logrus"
+	"github.com/golang/glog"
 )
 
 const controllerAgentName = "es-controller"
@@ -132,7 +133,7 @@ func (c *Controller) Run(threadiness int, stopCh <-chan struct{}) error {
 	defer c.workqueue.ShutDown()
 	
 	// Start the informer factories to begin populating the informer caches
-	glog.Info("Starting Foo controller")
+	glog.Info("Starting ESCluster controller")
 	
 	// Wait for the caches to be synced before starting workers
 	glog.Info("Waiting for informer caches to sync")
@@ -231,7 +232,7 @@ func (c *Controller) syncHandler(key string) error {
 		// The Foo resource may no longer exist, in which case we stop
 		// processing.
 		if errors.IsNotFound(err) {
-			runtime.HandleError(fmt.Errorf("foo '%s' in work queue no longer exists", key))
+			runtime.HandleError(fmt.Errorf("EsCluster '%s' in work queue no longer exists", key))
 			return nil
 		}
 		
@@ -303,7 +304,7 @@ func (c *Controller) updateFooStatus(escluster *esv1.EsCluster, deploys []*appsv
 		}
 		fmt.Printf("Found %d pods for %s \n", len(pods.Items), deploy.Name)
 		if len(pods.Items) != 1 {
-			fmt.Printf("%s is not in a good state, so just jump to next deployment", deploy.Name)
+			logrus.Info("%s is not in a good state, so just jump to next deployment\n", deploy.Name)
 			continue
 		}
 		pod := pods.Items[0]
