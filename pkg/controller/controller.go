@@ -429,7 +429,7 @@ func newPod(escluster *esv1.EsCluster, index int32) *corev1.Pod {
 						VolumeMounts: []corev1.VolumeMount{
 							{
 								Name:      "elastic-logging",
-								MountPath: "/data",
+								MountPath: "/usr/share/elasticsearch/data",
 							},
 						},
 					},
