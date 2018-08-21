@@ -12,11 +12,10 @@ import (
 	"time"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/kubernetes/scheme"
-	appsinformers "k8s.io/client-go/informers/apps/v1"
-	applisters "k8s.io/client-go/listers/apps/v1"
+	coreinformers "k8s.io/client-go/informers/core/v1"
+	corelisters "k8s.io/client-go/listers/core/v1"
 	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	corev1 "k8s.io/api/core/v1"
-	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	
 	informers "github.com/staugust/esoperator/pkg/client/informers/externalversions/augusto.cn/v1"
@@ -26,7 +25,6 @@ import (
 	esv1 "github.com/staugust/esoperator/pkg/apis/augusto.cn/v1"
 	"os"
 	"strconv"
-	"github.com/Sirupsen/logrus"
 	"github.com/golang/glog"
 )
 
@@ -48,10 +46,10 @@ type Controller struct {
 	// sampleclientset is a clientset for our own API group
 	esclientset clientset.Interface
 	
-	deployLister applisters.DeploymentLister
-	deploySynced cache.InformerSynced
-	esLister     listers.EsClusterLister
-	esSynced     cache.InformerSynced
+	podLister corelisters.PodLister
+	podSynced cache.InformerSynced
+	esLister  listers.EsClusterLister
+	esSynced  cache.InformerSynced
 	
 	// workqueue is a rate limited work queue. This is used to queue work to be
 	// processed instead of performing it as soon as a change happens. This
@@ -68,7 +66,7 @@ type Controller struct {
 func NewController(
 	kubeclientset kubernetes.Interface,
 	esclientset clientset.Interface,
-	pInformer appsinformers.DeploymentInformer,
+	pInformer coreinformers.PodInformer,
 	esInformer informers.EsClusterInformer) *Controller {
 	
 	// Create event broadcaster
@@ -84,8 +82,8 @@ func NewController(
 	controller := &Controller{
 		kubeclientset: kubeclientset,
 		esclientset:   esclientset,
-		deployLister:  pInformer.Lister(),
-		deploySynced:  pInformer.Informer().HasSynced,
+		podLister:     pInformer.Lister(),
+		podSynced:     pInformer.Informer().HasSynced,
 		esLister:      esInformer.Lister(),
 		esSynced:      esInformer.Informer().HasSynced,
 		workqueue:     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "EsClusters"),
@@ -109,8 +107,8 @@ func NewController(
 	pInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: controller.handleObject,
 		UpdateFunc: func(old, new interface{}) {
-			newDepl := new.(*appsv1.Deployment)
-			oldDepl := old.(*appsv1.Deployment)
+			newDepl := new.(*corev1.Pod)
+			oldDepl := old.(*corev1.Pod)
 			if newDepl.ResourceVersion == oldDepl.ResourceVersion {
 				// Periodic resync will send update events for all known Deployments.
 				// Two different versions of the same Deployment will always have different RVs.
@@ -137,7 +135,7 @@ func (c *Controller) Run(threadiness int, stopCh <-chan struct{}) error {
 	
 	// Wait for the caches to be synced before starting workers
 	glog.Info("Waiting for informer caches to sync")
-	if ok := cache.WaitForCacheSync(stopCh, c.deploySynced, c.esSynced); !ok {
+	if ok := cache.WaitForCacheSync(stopCh, c.podSynced, c.esSynced); !ok {
 		return fmt.Errorf("failed to wait for caches to sync")
 	}
 	
@@ -238,14 +236,14 @@ func (c *Controller) syncHandler(key string) error {
 		
 		return err
 	}
-	var deploys []*appsv1.Deployment
+	var pods []*corev1.Pod
 	for i := int32(1); i <= *escluster.Spec.Replicas; i++ {
-		newdeploy := newDeploy(escluster, i)
+		newdeploy := newPod(escluster, i)
 		
 		//TODO check each deployment
-		curdeploy, err := c.deployLister.Deployments(escluster.Namespace).Get(newdeploy.Name)
+		curdeploy, err := c.podLister.Pods(escluster.Namespace).Get(newdeploy.Name)
 		if errors.IsNotFound(err) {
-			curdeploy, err = c.kubeclientset.AppsV1().Deployments(escluster.Namespace).Create(newdeploy)
+			curdeploy, err = c.kubeclientset.CoreV1().Pods(escluster.Namespace).Create(newdeploy)
 		}
 		if err != nil {
 			//TODO maybe I should do more actions, not just break the loop and return
@@ -257,20 +255,22 @@ func (c *Controller) syncHandler(key string) error {
 			return fmt.Errorf(msg)
 		}
 		// pod's five status.phase: Pending, Running, Succeeded, Failed, Unknown
-		if curdeploy.Status.UnavailableReplicas != 0 {
+		if curdeploy.Status.Phase == "Failed" {
 			//c.kubeclientset.CoreV1().Pods(escluster.Namespace).Delete(dpod.Name, metav1.NewDeleteOptions(30))
 			//rpod, err = c.kubeclientset.CoreV1().Pods(escluster.Namespace).Create(dpod)
-			curdeploy, err = c.kubeclientset.AppsV1().Deployments(escluster.Namespace).Update(newdeploy)
+			c.kubeclientset.CoreV1().Pods(escluster.Namespace).Delete(newdeploy.Name, &metav1.DeleteOptions{
+			})
+			curdeploy, err = c.kubeclientset.CoreV1().Pods(escluster.Namespace).Create(newdeploy)
 		}
 		if err != nil {
 			return err
 		}
-		deploys = append(deploys, curdeploy)
+		pods = append(pods, curdeploy)
 	}
 	
 	// Finally, we update the status block of the Foo resource to reflect the
 	// current state of the world
-	err = c.updateFooStatus(escluster, deploys)
+	err = c.updateFooStatus(escluster, pods)
 	if err != nil {
 		return err
 	}
@@ -279,7 +279,7 @@ func (c *Controller) syncHandler(key string) error {
 	return nil
 }
 
-func (c *Controller) updateFooStatus(escluster *esv1.EsCluster, deploys []*appsv1.Deployment) error {
+func (c *Controller) updateFooStatus(escluster *esv1.EsCluster, pods []*corev1.Pod) error {
 	// NEVER modify objects from the store. It's a read-only, local cache.
 	// You can use DeepCopy() to make a deep copy of original object and modify this copy
 	// Or create a copy manually for better performance
@@ -287,29 +287,9 @@ func (c *Controller) updateFooStatus(escluster *esv1.EsCluster, deploys []*appsv
 	//TODO update pod status to escluster.PodsStatus
 	esCopy.Status.PodsStatus = make([]esv1.EsInstanceStatus, 0)
 	
-	for _, deploy := range deploys {
-		var ls string
-		var sep = ""
-		for key, val := range deploy.Spec.Selector.MatchLabels {
-			ls += sep + key + "=" + val
-			sep = ","
-		}
-		
-		var pods, err = c.kubeclientset.CoreV1().Pods(escluster.Namespace).List(metav1.ListOptions{
-			LabelSelector: ls,
-		})
-		if err != nil {
-			fmt.Printf("Error: %v --> %s with labelSelector --> %s\n", err, deploy.Name,ls)
-			continue
-		}
-		fmt.Printf("Found %d pods for %s \n", len(pods.Items), deploy.Name)
-		if len(pods.Items) != 1 {
-			logrus.Info("%s is not in a good state, so just jump to next deployment\n", deploy.Name)
-			continue
-		}
-		pod := pods.Items[0]
+	for _, pod := range pods {
 		status := esv1.EsInstanceStatus{
-			PodName:     deploy.Name,
+			PodName:     pod.Name,
 			PodHostName: pod.Spec.Hostname,
 			NodeName:    pod.Spec.NodeName,
 			Status:      pod.Status,
@@ -376,11 +356,11 @@ func (c *Controller) handleObject(obj interface{}) {
 	}
 }
 
-func newDeploy(escluster *esv1.EsCluster, index int32) *appsv1.Deployment {
+func newPod(escluster *esv1.EsCluster, index int32) *corev1.Pod {
 	labels := map[string]string{
-		"app":        "elastic-search",
-		"controller": escluster.Name,
-		"deploy-index" : escluster.Name + "-" + strconv.Itoa(int(index)),
+		"app":          "elastic-search",
+		"controller":   escluster.Name,
+		"deploy-index": escluster.Name + "-" + strconv.Itoa(int(index)),
 	}
 	
 	var envArr []corev1.EnvVar = make([]corev1.EnvVar, len(escluster.Spec.Env))
@@ -403,9 +383,9 @@ func newDeploy(escluster *esv1.EsCluster, index int32) *appsv1.Deployment {
 		},
 	})
 	
-	var deploy *appsv1.Deployment = nil
+	var pod *corev1.Pod = nil
 	if index > 0 && index <= *escluster.Spec.Replicas {
-		deploy = &appsv1.Deployment{
+		pod = &corev1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      escluster.Name + "-" + strconv.Itoa(int(index)),
 				Namespace: escluster.Namespace,
@@ -418,92 +398,69 @@ func newDeploy(escluster *esv1.EsCluster, index int32) *appsv1.Deployment {
 					}),
 				},
 			},
-			
-			//TODO write pod's spec
-			Spec: appsv1.DeploymentSpec{
-				Replicas: &deployReplicas,
-				Selector: &metav1.LabelSelector{
-					MatchLabels: labels,
-				},
-				Template: corev1.PodTemplateSpec{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      escluster.Name + "-" + strconv.Itoa(int(index)),
-						Namespace: escluster.Namespace,
-						Labels:    labels,
-						OwnerReferences: []metav1.OwnerReference{
-							*metav1.NewControllerRef(escluster, schema.GroupVersionKind{
-								Group:   esv1.SchemeGroupVersion.Group,
-								Version: esv1.SchemeGroupVersion.Version,
-								Kind:    esv1.CRD_KIND,
-							}),
+			Spec: corev1.PodSpec{
+				Containers: []corev1.Container{
+					{
+						Name:      "elasticsearch-logging",
+						Image:     escluster.Spec.EsImage,
+						Env:       envArr,
+						Resources: escluster.Spec.Resource,
+						//corev1.ResourceRequirements{
+						//	Limits: corev1.ResourceList{
+						//		//TODO generate quantity from spec
+						//		corev1.ResourceCPU: resource.MustParse("1500m"),
+						//	},
+						//	Requests: corev1.ResourceList{
+						//		corev1.ResourceCPU: resource.MustParse("1500m"),
+						//	},
+						//},
+						Ports: []corev1.ContainerPort{
+							{
+								ContainerPort: 9200,
+								Name:          "db",
+								Protocol:      "TCP",
+							},
+							{
+								ContainerPort: 9300,
+								Name:          "transport",
+								Protocol:      "TCP",
+							},
+						},
+						VolumeMounts: []corev1.VolumeMount{
+							{
+								Name:      "elastic-logging",
+								MountPath: "/data",
+							},
 						},
 					},
-					Spec: corev1.PodSpec{
-						Containers: []corev1.Container{
-							{
-								Name:      "elasticsearch-logging",
-								Image:     escluster.Spec.EsImage,
-								Env:       envArr,
-								Resources: escluster.Spec.Resource,
-								//corev1.ResourceRequirements{
-								//	Limits: corev1.ResourceList{
-								//		//TODO generate quantity from spec
-								//		corev1.ResourceCPU: resource.MustParse("1500m"),
-								//	},
-								//	Requests: corev1.ResourceList{
-								//		corev1.ResourceCPU: resource.MustParse("1500m"),
-								//	},
-								//},
-								Ports: []corev1.ContainerPort{
-									{
-										ContainerPort: 9200,
-										Name:          "db",
-										Protocol:      "TCP",
-									},
-									{
-										ContainerPort: 9300,
-										Name:          "transport",
-										Protocol:      "TCP",
-									},
-								},
-								VolumeMounts: []corev1.VolumeMount{
-									{
-										Name:      "elastic-logging",
-										MountPath: "/data",
-									},
-								},
-							},
+				},
+				InitContainers: []corev1.Container{
+					{
+						Name: "elasticsearch-logging-init",
+						Command: []string{
+							"/sbin/sysctl",
+							"-w",
+							"vm.max_map_count=262144",
 						},
-						InitContainers: []corev1.Container{
-							{
-								Name: "elasticsearch-logging-init",
-								Command: []string{
-									"/sbin/sysctl",
-									"-w",
-									"vm.max_map_count=262144",
-								},
-								Image: "alpine:3.6",
-								SecurityContext: &corev1.SecurityContext{
-									Privileged: &podSecurityContextPrivileged,
-								},
-							},
+						Image: "alpine:3.6",
+						SecurityContext: &corev1.SecurityContext{
+							Privileged: &podSecurityContextPrivileged,
 						},
-						Volumes: []corev1.Volume{
-							corev1.Volume{
-								Name: "elastic-logging",
-								VolumeSource: corev1.VolumeSource{
-									HostPath: &corev1.HostPathVolumeSource{
-										Path: escluster.Spec.DataPath + string(os.PathSeparator) + escluster.Name + "-" + strconv.Itoa(int(index)),
-									},
-								},
-							},
-						},
-						TerminationGracePeriodSeconds: &podTerminationGracePeriodSeconds,
 					},
 				},
+				Volumes: []corev1.Volume{
+					corev1.Volume{
+						Name: "elastic-logging",
+						VolumeSource: corev1.VolumeSource{
+							HostPath: &corev1.HostPathVolumeSource{
+								Path: escluster.Spec.DataPath + string(os.PathSeparator) + escluster.Name + "-" + strconv.Itoa(int(index)),
+							},
+						},
+					},
+				},
+				TerminationGracePeriodSeconds: &podTerminationGracePeriodSeconds,
 			},
 		}
 	}
-	
-	return deploy
+	return pod
 }
