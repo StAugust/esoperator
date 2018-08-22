@@ -540,11 +540,6 @@ func newPod(escluster *esv1.EsCluster, index int32) *corev1.Pod {
 								Name:      "elastic-logging",
 								MountPath: "/usr/share/elasticsearch/data",
 							},
-							{
-								Name:      "es-configmap",
-								MountPath: "/usr/share/elasticsearch/config/",
-								//MountPath: "/usr/share/elasticsearch/config/elasticsearch.yml",
-							},
 						},
 					},
 				},
@@ -568,16 +563,6 @@ func newPod(escluster *esv1.EsCluster, index int32) *corev1.Pod {
 						VolumeSource: corev1.VolumeSource{
 							HostPath: &corev1.HostPathVolumeSource{
 								Path: escluster.Spec.DataPath + string(os.PathSeparator) + escluster.Name + "-" + strconv.Itoa(int(index)),
-							},
-						},
-					},
-					{
-						Name: "es-configmap",
-						VolumeSource: corev1.VolumeSource{
-							ConfigMap: &corev1.ConfigMapVolumeSource{
-								LocalObjectReference: corev1.LocalObjectReference{
-									Name: escluster.Name + "-configmap",
-								},
 							},
 						},
 					},
