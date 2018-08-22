@@ -26,6 +26,8 @@ import (
 	"os"
 	"strconv"
 	"github.com/golang/glog"
+	"k8s.io/apimachinery/pkg/util/intstr"
+	"github.com/Sirupsen/logrus"
 )
 
 const controllerAgentName = "es-controller"
@@ -236,6 +238,46 @@ func (c *Controller) syncHandler(key string) error {
 		
 		return err
 	}
+	
+	//update configmap
+	var configmap = newESConfigMap(escluster)
+	var curConfigMap *corev1.ConfigMap = nil
+	c.kubeclientset.CoreV1().ConfigMaps(escluster.Namespace).Get(configmap.Name, metav1.GetOptions{
+	
+	})
+	if errors.IsNotFound(err) {
+		curConfigMap, err = c.kubeclientset.CoreV1().ConfigMaps(escluster.Namespace).Create(configmap)
+	}
+	if err != nil {
+		logrus.Infof("Error occurs when get/create configmap --> %s", configmap.Name)
+		return err
+	}
+	if !metav1.IsControlledBy(curConfigMap, escluster) {
+		msg := fmt.Sprintf(MessageResourceExists, curConfigMap.Name)
+		c.recorder.Event(escluster, corev1.EventTypeWarning, ErrResourceExists, msg)
+		return fmt.Errorf(msg)
+	}
+	curConfigMap, err = c.kubeclientset.CoreV1().ConfigMaps(escluster.Namespace).Update(configmap)
+	if err != nil {
+		return err
+	}
+	logrus.Debugf("ConfigMap %s: \n%s", curConfigMap.Name, *curConfigMap)
+	//update service
+	for i := int32(1); i <= *escluster.Spec.Replicas; i++ {
+		var newSvc = newService(escluster, i)
+		curSvc, err := c.kubeclientset.CoreV1().Services(escluster.Namespace).Update(newSvc)
+		if err != nil {
+			logrus.Debugf("Service %s: \n%s", curSvc.Name, *curSvc)
+		}
+	}
+	//update ESService
+	var newESsvc = newESService(escluster)
+	curESsvc, err := c.kubeclientset.CoreV1().Services(escluster.Namespace).Update(newESsvc)
+	if err != nil {
+		logrus.Debugf("Service %s: \n%s", curESsvc.Name, *curESsvc)
+	}
+	
+	//update pods status
 	var pods []*corev1.Pod
 	for i := int32(1); i <= *escluster.Spec.Replicas; i++ {
 		newdeploy := newPod(escluster, i)
@@ -356,6 +398,121 @@ func (c *Controller) handleObject(obj interface{}) {
 	}
 }
 
+func newESConfigMap(escluster *esv1.EsCluster) *corev1.ConfigMap {
+	var hosts, sep string
+	for i := int32(1); i <= *escluster.Spec.Replicas; i++ {
+		hosts += sep + "\"" + escluster.Name + " - " + strconv.Itoa(int(i)) + "\""
+		sep = ","
+	}
+	
+	var configMap = &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      escluster.Name + "-configmap",
+			Namespace: escluster.Namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(escluster, schema.GroupVersionKind{
+					Group:   esv1.SchemeGroupVersion.Group,
+					Version: esv1.SchemeGroupVersion.Version,
+					Kind:    esv1.CRD_KIND,
+				}),
+			},
+		},
+		Data: map[string]string{
+			"elasticsearch.yml": fmt.Sprintf(`
+cluster.name: "docker-cluster"
+network.host: 0.0.0.0
+# minimum_master_nodes need to be explicitly set when bound on a public IP
+# set to 1 to allow single node clusters
+# Details: https://github.com/elastic/elasticsearch/pull/17288
+discovery.zen.minimum_master_nodes: %d
+discovery.zen.ping.unicast.hosts:[%s]
+`, (*escluster.Spec.Replicas+1)/2, hosts),
+		},
+	}
+	return configMap
+}
+
+func newESService(escluster *esv1.EsCluster) *corev1.Service {
+	labels := map[string]string{
+		"app":        "elastic-search",
+		"controller": escluster.Name,
+	}
+	var svc = &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      escluster.Name,
+			Namespace: escluster.Namespace,
+			Labels:    labels,
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(escluster, schema.GroupVersionKind{
+					Group:   esv1.SchemeGroupVersion.Group,
+					Version: esv1.SchemeGroupVersion.Version,
+					Kind:    esv1.CRD_KIND,
+				}),
+			},
+		},
+		//TODO write right spec
+		Spec: corev1.ServiceSpec{
+			Ports: []corev1.ServicePort{
+				{
+					Port:       9200,
+					Name:       "elasticsearch-db",
+					Protocol:   "TCP",
+					TargetPort: intstr.IntOrString{nil, nil, "db"},
+				},
+				{
+					Port:       9300,
+					Name:       "elasticsearch-transport",
+					Protocol:   "TCP",
+					TargetPort: intstr.IntOrString{nil, nil, "transport"},
+				},
+			},
+			Selector: labels,
+		},
+	}
+	return svc
+}
+
+func newService(escluster *esv1.EsCluster, index int32) *corev1.Service {
+	labels := map[string]string{
+		"app":          "elastic-search",
+		"controller":   escluster.Name,
+		"deploy-index": escluster.Name + "-" + strconv.Itoa(int(index)),
+	}
+	var svc = &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      escluster.Name + "-" + strconv.Itoa(int(index)),
+			Namespace: escluster.Namespace,
+			Labels:    labels,
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(escluster, schema.GroupVersionKind{
+					Group:   esv1.SchemeGroupVersion.Group,
+					Version: esv1.SchemeGroupVersion.Version,
+					Kind:    esv1.CRD_KIND,
+				}),
+			},
+		},
+		//TODO write right spec
+		Spec: corev1.ServiceSpec{
+			Ports: []corev1.ServicePort{
+				{
+					Port:       9200,
+					Name:       "elasticsearch-db",
+					Protocol:   "TCP",
+					TargetPort: intstr.IntOrString{nil, nil, "db"},
+				},
+				{
+					Port:       9300,
+					Name:       "elasticsearch-transport",
+					Protocol:   "TCP",
+					TargetPort: intstr.IntOrString{nil, nil, "transport"},
+				},
+			},
+			Selector: labels,
+		},
+	}
+	return svc
+}
+
 func newPod(escluster *esv1.EsCluster, index int32) *corev1.Pod {
 	labels := map[string]string{
 		"app":          "elastic-search",
@@ -431,6 +588,10 @@ func newPod(escluster *esv1.EsCluster, index int32) *corev1.Pod {
 								Name:      "elastic-logging",
 								MountPath: "/usr/share/elasticsearch/data",
 							},
+							{
+								Name:      "es-configmap",
+								MountPath: "/usr/share/elasticsearch/config/elasticsearch.yml",
+							},
 						},
 					},
 				},
@@ -454,6 +615,16 @@ func newPod(escluster *esv1.EsCluster, index int32) *corev1.Pod {
 						VolumeSource: corev1.VolumeSource{
 							HostPath: &corev1.HostPathVolumeSource{
 								Path: escluster.Spec.DataPath + string(os.PathSeparator) + escluster.Name + "-" + strconv.Itoa(int(index)),
+							},
+						},
+					},
+					{
+						Name: "es-configmap",
+						VolumeSource: corev1.VolumeSource{
+							ConfigMap: &corev1.ConfigMapVolumeSource{
+								LocalObjectReference: corev1.LocalObjectReference{
+									Name: escluster.Name + "-configmap",
+								},
 							},
 						},
 					},
