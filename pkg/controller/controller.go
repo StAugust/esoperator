@@ -495,7 +495,7 @@ func newPod(escluster *esv1.EsCluster, index int32) *corev1.Pod {
 	})
 	var hosts, sep string
 	for i:=int32(1); i <= *escluster.Spec.Replicas; i++{
-		hosts += sep + escluster.Name + "-" + strconv.Itoa(int(i)) + "." + escluster.Namespace + "svc.cluster.local"
+		hosts += sep + escluster.Name + "-" + strconv.Itoa(int(i)) + "." + escluster.Namespace + ".svc.cluster.local"
 	}
 	envArr = append(envArr, corev1.EnvVar{
 		Name: "discovery.zen.ping.unicast.hosts",
