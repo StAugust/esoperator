@@ -399,10 +399,18 @@ func (c *Controller) handleObject(obj interface{}) {
 }
 
 func newESConfigMap(escluster *esv1.EsCluster) *corev1.ConfigMap {
-	var hosts, sep string
+
+	var escontent = fmt.Sprintf(`
+cluster.name: "docker-cluster"
+network.host: 0.0.0.0
+# minimum_master_nodes need to be explicitly set when bound on a public IP
+# set to 1 to allow single node clusters
+# Details: https://github.com/elastic/elasticsearch/pull/17288
+discovery.zen.minimum_master_nodes: %d
+discovery.zen.ping.unicast.hosts:
+`, (*escluster.Spec.Replicas+1)/2)
 	for i := int32(1); i <= *escluster.Spec.Replicas; i++ {
-		hosts += sep + "\"" + escluster.Name + " - " + strconv.Itoa(int(i)) + "\""
-		sep = ","
+		escontent += fmt.Sprintf("  - %s \n", escluster.Name + "-" + strconv.Itoa(int(i)))
 	}
 	
 	var configMap = &corev1.ConfigMap{
@@ -418,15 +426,7 @@ func newESConfigMap(escluster *esv1.EsCluster) *corev1.ConfigMap {
 			},
 		},
 		Data: map[string]string{
-			"elasticsearch.yml": fmt.Sprintf(`
-cluster.name: "docker-cluster"
-network.host: 0.0.0.0
-# minimum_master_nodes need to be explicitly set when bound on a public IP
-# set to 1 to allow single node clusters
-# Details: https://github.com/elastic/elasticsearch/pull/17288
-discovery.zen.minimum_master_nodes: %d
-discovery.zen.ping.unicast.hosts:[%s]
-`, (*escluster.Spec.Replicas+1)/2, hosts),
+			"elasticsearch.yml": escontent,
 		},
 	}
 	return configMap
