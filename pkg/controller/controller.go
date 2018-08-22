@@ -242,7 +242,7 @@ func (c *Controller) syncHandler(key string) error {
 	//update configmap
 	var configmap = newESConfigMap(escluster)
 	var curConfigMap *corev1.ConfigMap = nil
-	c.kubeclientset.CoreV1().ConfigMaps(escluster.Namespace).Get(configmap.Name, metav1.GetOptions{
+	curConfigMap, err = c.kubeclientset.CoreV1().ConfigMaps(escluster.Namespace).Get(configmap.Name, metav1.GetOptions{
 	
 	})
 	if errors.IsNotFound(err) {
