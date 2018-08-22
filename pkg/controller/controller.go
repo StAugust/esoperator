@@ -242,16 +242,26 @@ func (c *Controller) syncHandler(key string) error {
 	//update service
 	for i := int32(1); i <= *escluster.Spec.Replicas; i++ {
 		var newSvc = newService(escluster, i)
-		curSvc, err := c.kubeclientset.CoreV1().Services(escluster.Namespace).Update(newSvc)
+		_, err = c.kubeclientset.CoreV1().Services(escluster.Namespace).Get(newSvc.Name, metav1.GetOptions{
+		
+		})
+		if errors.IsNotFound(err) {
+			_, err =  c.kubeclientset.CoreV1().Services(escluster.Namespace).Create(newSvc)
+		}
 		if err != nil {
-			logrus.Debugf("Service %s: \n%s", curSvc.Name, *curSvc)
+			logrus.Debugf("Service %s: %s\n", newSvc.Name, err)
 		}
 	}
 	//update ESService
 	var newESsvc = newESService(escluster)
-	curESsvc, err := c.kubeclientset.CoreV1().Services(escluster.Namespace).Update(newESsvc)
+	_, err = c.kubeclientset.CoreV1().Services(escluster.Namespace).Get(newESsvc.Name, metav1.GetOptions{
+	
+	})
+	if errors.IsNotFound(err) {
+		_, err =  c.kubeclientset.CoreV1().Services(escluster.Namespace).Create(newESsvc)
+	}
 	if err != nil {
-		logrus.Debugf("Service %s: \n%s", curESsvc.Name, *curESsvc)
+		logrus.Debugf("Service %s: %s\n", newESsvc.Name, err)
 	}
 	
 	//update pods status
