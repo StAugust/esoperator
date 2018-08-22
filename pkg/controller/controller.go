@@ -590,7 +590,8 @@ func newPod(escluster *esv1.EsCluster, index int32) *corev1.Pod {
 							},
 							{
 								Name:      "es-configmap",
-								MountPath: "/usr/share/elasticsearch/config/elasticsearch.yml",
+								MountPath: "/usr/share/elasticsearch/config/",
+								//MountPath: "/usr/share/elasticsearch/config/elasticsearch.yml",
 							},
 						},
 					},
