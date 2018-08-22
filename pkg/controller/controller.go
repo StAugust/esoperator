@@ -239,29 +239,6 @@ func (c *Controller) syncHandler(key string) error {
 		return err
 	}
 	
-	//update configmap
-	var configmap = newESConfigMap(escluster)
-	var curConfigMap *corev1.ConfigMap = nil
-	curConfigMap, err = c.kubeclientset.CoreV1().ConfigMaps(escluster.Namespace).Get(configmap.Name, metav1.GetOptions{
-	
-	})
-	if errors.IsNotFound(err) {
-		curConfigMap, err = c.kubeclientset.CoreV1().ConfigMaps(escluster.Namespace).Create(configmap)
-	}
-	if err != nil {
-		logrus.Infof("Error occurs when get/create configmap --> %s", configmap.Name)
-		return err
-	}
-	if !metav1.IsControlledBy(curConfigMap, escluster) {
-		msg := fmt.Sprintf(MessageResourceExists, curConfigMap.Name)
-		c.recorder.Event(escluster, corev1.EventTypeWarning, ErrResourceExists, msg)
-		return fmt.Errorf(msg)
-	}
-	curConfigMap, err = c.kubeclientset.CoreV1().ConfigMaps(escluster.Namespace).Update(configmap)
-	if err != nil {
-		return err
-	}
-	logrus.Debugf("ConfigMap %s: \n%s", curConfigMap.Name, *curConfigMap)
 	//update service
 	for i := int32(1); i <= *escluster.Spec.Replicas; i++ {
 		var newSvc = newService(escluster, i)
@@ -398,39 +375,6 @@ func (c *Controller) handleObject(obj interface{}) {
 	}
 }
 
-func newESConfigMap(escluster *esv1.EsCluster) *corev1.ConfigMap {
-
-	var escontent = fmt.Sprintf(`
-cluster.name: "docker-cluster"
-network.host: 0.0.0.0
-# minimum_master_nodes need to be explicitly set when bound on a public IP
-# set to 1 to allow single node clusters
-# Details: https://github.com/elastic/elasticsearch/pull/17288
-discovery.zen.minimum_master_nodes: %d
-discovery.zen.ping.unicast.hosts:
-`, (*escluster.Spec.Replicas+1)/2)
-	for i := int32(1); i <= *escluster.Spec.Replicas; i++ {
-		escontent += fmt.Sprintf("  - %s \n", escluster.Name + "-" + strconv.Itoa(int(i)))
-	}
-	
-	var configMap = &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      escluster.Name + "-configmap",
-			Namespace: escluster.Namespace,
-			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(escluster, schema.GroupVersionKind{
-					Group:   esv1.SchemeGroupVersion.Group,
-					Version: esv1.SchemeGroupVersion.Version,
-					Kind:    esv1.CRD_KIND,
-				}),
-			},
-		},
-		Data: map[string]string{
-			"elasticsearch.yml": escontent,
-		},
-	}
-	return configMap
-}
 
 func newESService(escluster *esv1.EsCluster) *corev1.Service {
 	labels := map[string]string{
@@ -538,6 +482,14 @@ func newPod(escluster *esv1.EsCluster, index int32) *corev1.Pod {
 				FieldPath: "metadata.name",
 			},
 		},
+	})
+	var hosts, sep string
+	for i:=int32(1); i <= *escluster.Spec.Replicas; i++{
+		hosts += sep + escluster.Name + "-" + strconv.Itoa(int(i)) + "." + escluster.Namespace + "svc.cluster.local"
+	}
+	envArr = append(envArr, corev1.EnvVar{
+		Name: "discovery.zen.ping.unicast.hosts",
+		Value:hosts,
 	})
 	
 	var pod *corev1.Pod = nil
